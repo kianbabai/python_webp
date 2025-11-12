@@ -9,7 +9,7 @@ class WebPConverterApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Image to WebP Converter")
-        self.root.geometry("600x500")
+        self.root.geometry("600x600")
         self.root.resizable(False, False)
         
         self.files = []
@@ -46,10 +46,30 @@ class WebPConverterApp:
                                      foreground="gray")
         self.output_label.grid(row=2, column=1, padx=(10, 0), sticky=tk.W)
         
+        # Resize settings
+        resize_frame = ttk.LabelFrame(main_frame, text="Resize Settings (Optional)", 
+                                     padding="10")
+        resize_frame.grid(row=3, column=0, columnspan=2, pady=10, sticky=(tk.W, tk.E))
+        
+        ttk.Label(resize_frame, text="Width:").grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
+        self.width_var = tk.StringVar(value="")
+        width_entry = ttk.Entry(resize_frame, textvariable=self.width_var, width=10)
+        width_entry.grid(row=0, column=1, padx=(0, 15), sticky=tk.W)
+        ttk.Label(resize_frame, text="px").grid(row=0, column=2, sticky=tk.W)
+        
+        ttk.Label(resize_frame, text="Height:").grid(row=0, column=3, sticky=tk.W, padx=(15, 5))
+        self.height_var = tk.StringVar(value="")
+        height_entry = ttk.Entry(resize_frame, textvariable=self.height_var, width=10)
+        height_entry.grid(row=0, column=4, padx=(0, 5), sticky=tk.W)
+        ttk.Label(resize_frame, text="px").grid(row=0, column=5, sticky=tk.W)
+        
+        ttk.Label(resize_frame, text="(Leave empty to maintain aspect ratio)", 
+                 foreground="gray", font=("Segoe UI", 8)).grid(row=1, column=0, columnspan=6, pady=(5, 0))
+        
         # Quality setting
         quality_frame = ttk.LabelFrame(main_frame, text="Quality Settings", 
                                       padding="10")
-        quality_frame.grid(row=3, column=0, columnspan=2, pady=20, sticky=(tk.W, tk.E))
+        quality_frame.grid(row=4, column=0, columnspan=2, pady=20, sticky=(tk.W, tk.E))
         
         ttk.Label(quality_frame, text="Quality:").grid(row=0, column=0, sticky=tk.W)
         
@@ -66,7 +86,7 @@ class WebPConverterApp:
         
         # Options
         options_frame = ttk.LabelFrame(main_frame, text="Options", padding="10")
-        options_frame.grid(row=4, column=0, columnspan=2, pady=(0, 20), 
+        options_frame.grid(row=5, column=0, columnspan=2, pady=(0, 20), 
                           sticky=(tk.W, tk.E))
         
         self.keep_original = tk.BooleanVar(value=True)
@@ -85,16 +105,16 @@ class WebPConverterApp:
         self.convert_btn = ttk.Button(main_frame, text="Convert to WebP", 
                                      command=self.start_conversion,
                                      state=tk.DISABLED)
-        self.convert_btn.grid(row=5, column=0, columnspan=2, pady=10)
+        self.convert_btn.grid(row=6, column=0, columnspan=2, pady=10)
         
         # Progress bar
         self.progress = ttk.Progressbar(main_frame, mode='determinate', length=560)
-        self.progress.grid(row=6, column=0, columnspan=2, pady=5)
+        self.progress.grid(row=7, column=0, columnspan=2, pady=5)
         
         # Status label
         self.status_label = ttk.Label(main_frame, text="Ready", 
                                      foreground="blue")
-        self.status_label.grid(row=7, column=0, columnspan=2)
+        self.status_label.grid(row=8, column=0, columnspan=2)
         
     def update_quality_label(self, value):
         self.quality_label.config(text=f"{int(float(value))}%")
@@ -126,6 +146,26 @@ class WebPConverterApp:
         if not self.files:
             messagebox.showwarning("No Files", "Please select images to convert.")
             return
+        
+        # Validate resize inputs
+        width_str = self.width_var.get().strip()
+        height_str = self.height_var.get().strip()
+        
+        if width_str and not width_str.isdigit():
+            messagebox.showerror("Invalid Input", "Width must be a positive number.")
+            return
+        
+        if height_str and not height_str.isdigit():
+            messagebox.showerror("Invalid Input", "Height must be a positive number.")
+            return
+        
+        if width_str and int(width_str) <= 0:
+            messagebox.showerror("Invalid Input", "Width must be greater than 0.")
+            return
+        
+        if height_str and int(height_str) <= 0:
+            messagebox.showerror("Invalid Input", "Height must be greater than 0.")
+            return
             
         self.convert_btn.config(state=tk.DISABLED)
         self.progress['value'] = 0
@@ -147,6 +187,37 @@ class WebPConverterApp:
                 
                 # Open image
                 img = Image.open(file_path)
+                
+                # Resize if width or height is specified
+                width_str = self.width_var.get().strip()
+                height_str = self.height_var.get().strip()
+                
+                if width_str or height_str:
+                    original_width, original_height = img.size
+                    target_width = int(width_str) if width_str else None
+                    target_height = int(height_str) if height_str else None
+                    
+                    # Calculate new dimensions maintaining aspect ratio
+                    if target_width and target_height:
+                        # Both specified - maintain aspect ratio by fitting within bounds
+                        width_ratio = target_width / original_width
+                        height_ratio = target_height / original_height
+                        ratio = min(width_ratio, height_ratio)  # Use smaller ratio to fit within bounds
+                        new_width = int(original_width * ratio)
+                        new_height = int(original_height * ratio)
+                        new_size = (new_width, new_height)
+                    elif target_width:
+                        # Only width specified - calculate height
+                        ratio = target_width / original_width
+                        new_height = int(original_height * ratio)
+                        new_size = (target_width, new_height)
+                    else:
+                        # Only height specified - calculate width
+                        ratio = target_height / original_height
+                        new_width = int(original_width * ratio)
+                        new_size = (new_width, target_height)
+                    
+                    img = img.resize(new_size, Image.Resampling.LANCZOS)
                 
                 # Convert to RGB if necessary
                 if img.mode in ('RGBA', 'LA', 'P'):
